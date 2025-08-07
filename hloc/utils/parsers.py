@@ -32,11 +32,20 @@ def parse_image_list(path, with_intrinsics=False):
 
 
 def parse_image_lists(paths, with_intrinsics=False):
+    if isinstance(paths, (str, Path)):
+        paths = [paths]  # Wrap single path in list
+
     images = []
-    files = list(Path(paths.parent).glob(paths.name))
-    assert len(files) > 0
-    for lfile in files:
-        images += parse_image_list(lfile, with_intrinsics=with_intrinsics)
+    for p in paths:
+        p = Path(p)
+        if p.is_file():
+            images += parse_image_list(p, with_intrinsics=with_intrinsics)
+        else:
+            files = list(p.parent.glob(p.name))
+            for lfile in files:
+                images += parse_image_list(lfile, with_intrinsics=with_intrinsics)
+
+    assert len(images) > 0
     return images
 
 

@@ -170,8 +170,6 @@ def geometric_verification(
                 errors0 <= cam0.cam_from_img_threshold(noise0 * max_error),
                 errors1 <= cam1.cam_from_img_threshold(noise1 * max_error),
             )
-            # TODO: We could also add E to the database, but we need
-            # to reverse the transformations if id0 > id1 in utils/database.py.
             db.add_two_view_geometry(id0, id1, matches[valid_matches, :])
             inlier_ratios.append(np.mean(valid_matches))
     logger.info(
@@ -253,45 +251,21 @@ def main(
     return reconstruction
 
 
-def parse_option_args(args: List[str], default_options) -> Dict[str, Any]:
-    options = {}
-    for arg in args:
-        idx = arg.find("=")
-        if idx == -1:
-            raise ValueError("Options format: key1=value1 key2=value2 etc.")
-        key, value = arg[:idx], arg[idx + 1 :]
-        if not hasattr(default_options, key):
-            raise ValueError(
-                f'Unknown option "{key}", allowed options and default values'
-                f" for {default_options.summary()}"
-            )
-        value = eval(value)
-        target_type = type(getattr(default_options, key))
-        if not isinstance(value, target_type):
-            raise ValueError(
-                f'Incorrect type for option "{key}":' f" {type(value)} vs {target_type}"
-            )
-        options[key] = value
-    return options
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sfm_dir", type=Path, required=True)
     parser.add_argument("--reference_sfm_model", type=Path, required=True)
     parser.add_argument("--image_dir", type=Path, required=True)
-
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--features", type=Path, required=True)
     parser.add_argument("--matches", type=Path, required=True)
-
     parser.add_argument("--skip_geometric_verification", action="store_true")
     parser.add_argument("--min_match_score", type=float)
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args().__dict__
 
-    mapper_options = parse_option_args(
-        args.pop("mapper_options"), pycolmap.IncrementalMapperOptions()
-    )
+    # 🔧 Patch the argument name to match function signature
+    args["reference_model"] = args.pop("reference_sfm_model")
 
+    mapper_options = {}  # You can populate this later if needed
     main(**args, mapper_options=mapper_options)
