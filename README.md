@@ -1,146 +1,67 @@
-# ------------------------------------------
-# SYSTEM SETUP
-# ------------------------------------------
-sudo apt update && sudo apt install -y \
-  git cmake build-essential ninja-build \
-  libboost-all-dev libeigen3-dev libflann-dev libglew-dev \
-  qtbase5-dev libqt5opengl5-dev libcgal-dev libfreeimage-dev \
-  libgoogle-glog-dev libgflags-dev libsqlite3-dev \
-  python3 python3-pip python3-dev python3-venv
+# COLMAP + Hierarchical Localization Workspace
 
-# ------------------------------------------
-# INSTALL COLMAP FROM SOURCE
-# ------------------------------------------
-cd ~
-git clone https://github.com/colmap/colmap.git
-cd colmap
-mkdir build && cd build
-cmake .. -GNinja
-ninja
-sudo ninja install
-colmap help
+[![Repository validation](https://github.com/akhil15123/colmap_hloc/actions/workflows/code-quality.yml/badge.svg)](https://github.com/akhil15123/colmap_hloc/actions/workflows/code-quality.yml)
 
-# ------------------------------------------
-# INSTALL HLOC
-# ------------------------------------------
-cd ~
-git clone https://github.com/cvg/Hierarchical-Localization.git
-cd Hierarchical-Localization
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install lightglue kornia pycolmap
+A reproducible computer-vision workspace for extracting local features, matching images, building COLMAP reconstructions, and estimating 6DoF camera poses with Hierarchical Localization (HLoc).
 
-# ------------------------------------------
-# SETUP WORKSPACE & COPY DATA
-# ------------------------------------------
-cd ~
-mkdir -p hloc_project/dataset/images      # ← your reference images go here
-mkdir -p hloc_project/dataset/queries     # ← your query images go here
-mkdir -p hloc_project/dataset/hloc
+![Hierarchical localization overview](doc/hloc.png)
 
-cd ~/Hierarchical-Localization
-source venv/bin/activate
+## What is included
 
-# ------------------------------------------
-# HLOC PIPELINE: FEATURE EXTRACTION (REFERENCE)
-# ------------------------------------------
-python -m hloc.extract_features \
-  --image_dir ~/hloc_project/dataset/images \
-  --features_path ~/hloc_project/dataset/hloc/features.h5 \
-  --method superpoint_aachen
+- HLoc feature extractors and matchers, including ALIKED, SuperPoint, LightGlue, and SuperGlue
+- COLMAP reconstruction, triangulation, and pose-localization utilities
+- Notebook pipelines for Aachen, InLoc, and structure-from-motion experiments
+- A small Sacré-Cœur image example under `datasets/`
+- Portable command-line helpers for localization, feature merging, and matching
+- A Docker environment and syntax/notebook validation in GitHub Actions
 
-# ------------------------------------------
-# IMAGE PAIRING (EXHAUSTIVE)
-# ------------------------------------------
-python -m hloc.pairs_from_exhaustive \
-  ~/hloc_project/dataset/images \
-  ~/hloc_project/dataset/hloc/pairs.txt
+## Quick start
 
-# ------------------------------------------
-# MATCHING FEATURES
-# ------------------------------------------
-python -m hloc.match_features \
-  --pairs_path ~/hloc_project/dataset/hloc/pairs.txt \
-  --features_path ~/hloc_project/dataset/hloc/features.h5 \
-  --matches_path ~/hloc_project/dataset/hloc/matches.h5 \
-  --method superglue
+```bash
+git clone --recurse-submodules https://github.com/akhil15123/colmap_hloc.git
+cd colmap_hloc
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
 
-# ------------------------------------------
-# TRIANGULATE (SPARSE SfM MODEL)
-# ------------------------------------------
-python -m hloc.triangulation \
-  --image_dir ~/hloc_project/dataset/images \
-  --sfm_dir ~/hloc_project/dataset/hloc/sfm \
-  --pairs ~/hloc_project/dataset/hloc/pairs.txt \
-  --features ~/hloc_project/dataset/hloc/features.h5 \
-  --matches ~/hloc_project/dataset/hloc/matches.h5
+COLMAP must also be installed and available on `PATH`. GPU acceleration is strongly recommended for dense reconstruction and neural feature extraction.
 
-# ------------------------------------------
-# LOCALIZATION PAIRS (QUERY → DB IMAGES)
-# ------------------------------------------
-python -m hloc.pairs_from_retrieval \
-  --query_dir ~/hloc_project/dataset/queries \
-  --db_dir ~/hloc_project/dataset/images \
-  --output_path ~/hloc_project/dataset/hloc/query_pairs.txt \
-  --method netvlad
+## Portable helper commands
 
-# ------------------------------------------
-# FEATURE EXTRACTION (QUERY IMAGES)
-# ------------------------------------------
-python -m hloc.extract_features \
-  --image_dir ~/hloc_project/dataset/queries \
-  --features_path ~/hloc_project/dataset/hloc/query_features.h5 \
-  --method superpoint_aachen
+Localize query images against an existing reference reconstruction:
 
-# ------------------------------------------
-# MATCH QUERY → DB
-# ------------------------------------------
-python -m hloc.match_features \
-  --pairs_path ~/hloc_project/dataset/hloc/query_pairs.txt \
-  --features_path ~/hloc_project/dataset/hloc/query_features.h5 \
-  --matches_path ~/hloc_project/dataset/hloc/query_matches.h5 \
-  --method superglue
+```bash
+python localization.py \
+  --ref-sfm outputs/reference \
+  --query-list inputs/queries.txt \
+  --features outputs/features.h5 \
+  --matches outputs/matches.h5 \
+  --pairs outputs/pairs.txt \
+  --results outputs/poses.txt
+```
 
-# ------------------------------------------
-# LOCALIZE (GET 6DOF POSES)
-# ------------------------------------------
-python -m hloc.localize_sfm \
-  --sfm_dir ~/hloc_project/dataset/hloc/sfm \
-  --pairs_path ~/hloc_project/dataset/hloc/query_pairs.txt \
-  --features_path ~/hloc_project/dataset/hloc/query_features.h5 \
-  --matches_path ~/hloc_project/dataset/hloc/query_matches.h5 \
-  --output_path ~/hloc_project/dataset/hloc/poses.txt
+Merge query features into a database feature file:
 
-# ------------------------------------------
-# DENSE RECONSTRUCTION → POINT CLOUD & MESH
-# ------------------------------------------
+```bash
+python merging.py --database outputs/features.h5 --query outputs/query-features.h5
+```
 
-# UNDISTORT IMAGES
-colmap image_undistorter \
-  --image_path ~/hloc_project/dataset/images \
-  --input_path ~/hloc_project/dataset/hloc/sfm \
-  --output_path ~/hloc_project/dataset/dense \
-  --output_type COLMAP
+Run matching without machine-specific paths:
 
-# PATCH-MATCH STEREO (depth maps)
-colmap patch_match_stereo \
-  --workspace_path ~/hloc_project/dataset/dense \
-  --workspace_format COLMAP \
-  --PatchMatchStereo.geom_consistency true
+```bash
+python run_matching.py \
+  --pairs outputs/pairs.txt \
+  --features outputs/features.h5 \
+  --matches outputs/matches.h5 \
+  --method aliked+lightglue
+```
 
-# FUSE DEPTH MAPS (generate dense point cloud)
-colmap stereo_fusion \
-  --workspace_path ~/hloc_project/dataset/dense \
-  --workspace_format COLMAP \
-  --input_type geometric \
-  --output_path ~/hloc_project/dataset/dense/fused.ply
+The bundled notebooks provide longer walkthroughs. Large models and datasets are downloaded by the underlying tools and are intentionally not committed.
 
-# ------------------------------------------
-# ✅ DONE
-# ------------------------------------------
+## Upstream foundation and license
 
-echo "✅ Pipeline complete!"
-echo "📌 6DoF poses → ~/hloc_project/dataset/hloc/poses.txt"
-echo "📌 Dense point cloud → ~/hloc_project/dataset/dense/fused.ply"
+Most of the `hloc/` package and its research pipelines originate from [CVG's Hierarchical-Localization project](https://github.com/cvg/Hierarchical-Localization), created by Paul-Edouard Sarlin and contributors. This repository adds a COLMAP workspace, datasets, notebooks, and convenience scripts. The upstream Apache 2.0 license is retained in [`LICENSE`](LICENSE).
+
+If you use HLoc in research, follow the citation instructions in the upstream project.

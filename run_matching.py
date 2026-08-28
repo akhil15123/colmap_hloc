@@ -1,24 +1,29 @@
+"""Match HLoc features using paths supplied on the command line."""
+
+import argparse
 from pathlib import Path
-from hloc.match_features import match_from_paths, confs
 
-def main():
-    # Define the dataset/query directory
-    query_dir = Path("/Users/akhilb/Downloads/rgbd_dataset_freiburg3_long_office_household/query")
+from hloc.match_features import confs, match_from_paths
 
-    # Define paths
-    pairs_path = query_dir / "pairs-query_strict.txt"
-    features_path = query_dir / "feats-aliked-lightglue.h5"
-    matches_path = query_dir / "matches-aliked-lightglue.h5"
 
-    # Run matching using ALIKED + LightGlue
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pairs", type=Path, required=True)
+    parser.add_argument("--features", type=Path, required=True)
+    parser.add_argument("--matches", type=Path, required=True)
+    parser.add_argument("--method", choices=sorted(confs), default="aliked+lightglue")
+    parser.add_argument("--overwrite", action="store_true")
+    args = parser.parse_args()
+
     match_from_paths(
-        confs['aliked+lightglue'],
-        pairs_path,
-        matches_path,
-        features_path,
-        features_path,  # both query and reference features
-        overwrite=True
+        confs[args.method],
+        args.pairs,
+        args.matches,
+        args.features,
+        args.features,
+        overwrite=args.overwrite,
     )
+
 
 if __name__ == "__main__":
     main()
