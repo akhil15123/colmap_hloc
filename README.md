@@ -1,5 +1,13 @@
 # COLMAP + Hierarchical Localization Workspace
 
+
+<!-- portfolio-showcase:start -->
+<p align="center">
+  <img src="docs/showcase.svg" alt="Neural Visual Localization synthetic product showcase" width="100%">
+</p>
+<p align="center"><sub><strong>Portfolio preview:</strong> all names, records, metrics, and scenarios shown above are synthetic. No real user or customer data is included.</sub></p>
+<!-- portfolio-showcase:end -->
+
 [![Repository validation](https://github.com/akhil15123/colmap_hloc/actions/workflows/code-quality.yml/badge.svg)](https://github.com/akhil15123/colmap_hloc/actions/workflows/code-quality.yml)
 
 A reproducible computer-vision workspace for extracting local features, matching images, building COLMAP reconstructions, and estimating 6DoF camera poses with Hierarchical Localization (HLoc).
